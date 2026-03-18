@@ -1,101 +1,108 @@
 /**
- * Capsule Extension - Main Entry Point
- *
- * OpenClaw extension for sandbox-centric security with Kunpeng hardware optimization
+ * Capsule Extension - Secure Sandbox for OpenClaw
+ * 
+ * Provides hardware-enforced isolation for skill execution:
+ * - L1: Process isolation
+ * - L1+: Process + cgroups resource limits
+ * - L2: Docker container isolation
+ * - L2+/L3: SGX Enclave (x86) / TrustZone (ARM)
+ * 
+ * Supports:
+ * - x86: Intel SGX
+ * - ARM: Kunpeng/TrustZone
  */
 
+import type { Extension, Tool } from "@openclaw/plugin-sdk";
 import { SandboxManager } from "./sandbox.js";
-import { KunpengSecurity } from "./hardware/kunpeng.js";
+import { 
+  detectHardwareSecurity, 
+  executeIsolated, 
+  enforceCapabilities 
+} from "./isolation/executor.js";
 import { createExecSandboxTool } from "./tools/exec_sandbox.js";
-import { createSandboxTools } from "./tools/sandbox.js";
-import { createCapabilityTools } from "./tools/capability.js";
-import { createQuotaTools } from "./tools/quota.js";
+import { createSandboxTool } from "./tools/sandbox.js";
+import { createCapabilityTool } from "./tools/capability.js";
+import { createQuotaTool } from "./tools/quota.js";
 import { createAttestationTool } from "./tools/attestation.js";
 
 // Export types
 export * from "./types.js";
-export { SandboxManager } from "./sandbox.js";
-export { KunpengSecurity } from "./hardware/kunpeng.js";
+export * from "./isolation/executor.js";
 
-/**
- * Extension configuration
- */
+// Extension configuration
 export interface CapsuleConfig {
-  workspaceRoot: string;
-  maxSandboxes?: number;
-  securityEnabled?: boolean;
-  defaultIsolation?: "L0" | "L1" | "L1+" | "L2" | "L2+" | "L3";
+  defaultIsolationLevel?: "L1" | "L1+" | "L2" | "L2+" | "L3";
+  enableSGX?: boolean;
+  enableAttestation?: boolean;
+  maxSandboxCount?: number;
 }
 
+// Default configuration
 const DEFAULT_CONFIG: CapsuleConfig = {
-  workspaceRoot: "./capsule-workspace",
-  maxSandboxes: 100,
-  securityEnabled: true,
-  defaultIsolation: "L1",
+  defaultIsolationLevel: "L1",
+  enableSGX: true,
+  enableAttestation: true,
+  maxSandboxCount: 100,
 };
 
 /**
- * Create the Capsule extension
+ * Create Capsule Extension
  */
-export function createCapsuleExtension(config: Partial<CapsuleConfig> = {}) {
+export async function createCapsuleExtension(config: CapsuleConfig = {}): Promise<Extension> {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
-
-  // Initialize components
-  const sandboxManager = new SandboxManager({
-    workspaceRoot: finalConfig.workspaceRoot,
-    maxSandboxes: finalConfig.maxSandboxes,
-    securityEnabled: finalConfig.securityEnabled,
-  });
-
-  const security = new KunpengSecurity();
+  
+  // Initialize sandbox manager
+  const sandboxManager = new SandboxManager();
+  
+  // Detect hardware security features
+  const hwSecurity = await detectHardwareSecurity();
+  
+  console.log("[Capsule] Hardware Security Detection:");
+  console.log(`  Architecture: ${hwSecurity.architecture}`);
+  console.log(`  SGX Available: ${hwSecurity.hasSGX}`);
+  if (hwSecurity.sgxInfo) {
+    console.log(`  SGX Version: ${hwSecurity.sgxInfo.version}`);
+    console.log(`  SGX Devices: ${hwSecurity.sgxInfo.devices.join(", ")}`);
+  }
 
   // Create tools
-  const execSandbox = createExecSandboxTool(sandboxManager, security);
-  const sandboxTools = createSandboxTools(sandboxManager);
-  const capabilityTools = createCapabilityTools(sandboxManager);
-  const quotaTools = createQuotaTools(sandboxManager);
-  const attestationTool = createAttestationTool(sandboxManager, security);
-
-  // Combine all tools
-  const tools = [
-    execSandbox,
-    ...Object.values(sandboxTools),
-    ...Object.values(capabilityTools),
-    ...Object.values(quotaTools),
-    attestationTool,
+  const tools: Tool[] = [
+    createExecSandboxTool(sandboxManager, hwSecurity),
+    createSandboxTool(sandboxManager),
+    createCapabilityTool(sandboxManager),
+    createQuotaTool(sandboxManager),
   ];
 
+  // Add attestation tool if SGX is available
+  if (hwSecurity.hasSGX && finalConfig.enableAttestation) {
+    tools.push(createAttestationTool(hwSecurity));
+  }
+
   return {
-    id: "capsule",
-    version: "1.0.0",
-    description: "Sandbox-centric security extension with Kunpeng hardware optimization",
-
+    name: "capsule",
+    version: "2.0.0",
+    description: "Secure sandbox with hardware-enforced isolation (SGX/TrustZone)",
+    
     tools,
-
-    // Lifecycle hooks
-    async init() {
-      console.log("[Capsule] Initializing extension...");
-      const status = security.getStatus();
-      console.log("[Capsule] Security features:", Object.fromEntries(
-        Array.from(status.entries()).map(([k, v]) => [k, v.available])
-      ));
+    
+    async initialize() {
+      console.log("[Capsule] Extension initialized");
+      console.log(`[Capsule] Default isolation level: ${finalConfig.defaultIsolationLevel}`);
+      console.log(`[Capsule] SGX support: ${hwSecurity.hasSGX ? "Available" : "Not available"}`);
     },
-
+    
     async shutdown() {
-      console.log("[Capsule] Shutting down extension...");
-      // Destroy all sandboxes
-      for (const sandbox of sandboxManager.list()) {
-        await sandboxManager.destroy(sandbox.id);
+      // Cleanup all sandboxes
+      const sandboxes = sandboxManager.list();
+      for (const sandbox of sandboxes) {
+        try {
+          await sandboxManager.destroy(sandbox.id);
+        } catch {}
       }
-    },
-
-    // Export internals for advanced usage
-    internals: {
-      sandboxManager,
-      security,
+      console.log("[Capsule] Extension shutdown complete");
     },
   };
 }
 
-// Default export for OpenClaw
+// Default export
 export default createCapsuleExtension;

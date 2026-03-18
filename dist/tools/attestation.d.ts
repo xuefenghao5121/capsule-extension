@@ -1,26 +1,36 @@
 /**
- * Attestation Tool - Remote Attestation for Platform Trust
+ * Attestation Tool - SGX Remote Attestation
+ *
+ * Generate and verify SGX attestation reports
  */
 import { z } from "zod";
-import { SandboxManager } from "../sandbox.js";
-import { KunpengSecurity } from "../hardware/kunpeng.js";
+import { SGXInfo } from "../hardware/sgx.js";
 declare const InputSchema: z.ZodObject<{
     action: z.ZodEnum<["generate", "verify"]>;
-    sandboxId: z.ZodOptional<z.ZodString>;
+    data: z.ZodOptional<z.ZodString>;
     nonce: z.ZodOptional<z.ZodString>;
     report: z.ZodOptional<z.ZodString>;
+    signature: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     action: "generate" | "verify";
-    sandboxId?: string | undefined;
-    nonce?: string | undefined;
+    signature?: string | undefined;
     report?: string | undefined;
+    data?: string | undefined;
+    nonce?: string | undefined;
 }, {
     action: "generate" | "verify";
-    sandboxId?: string | undefined;
-    nonce?: string | undefined;
+    signature?: string | undefined;
     report?: string | undefined;
+    data?: string | undefined;
+    nonce?: string | undefined;
 }>;
-export declare function createAttestationTool(sandboxManager: SandboxManager, security: KunpengSecurity): {
+type AttestationInput = z.infer<typeof InputSchema>;
+interface HardwareSecurity {
+    hasSGX: boolean;
+    sgxInfo?: SGXInfo;
+    architecture: string;
+}
+export declare function createAttestationTool(hwSecurity: HardwareSecurity): {
     name: string;
     description: string;
     inputSchema: {
@@ -31,7 +41,7 @@ export declare function createAttestationTool(sandboxManager: SandboxManager, se
                 enum: string[];
                 description: string;
             };
-            sandboxId: {
+            data: {
                 type: string;
                 description: string;
             };
@@ -43,49 +53,58 @@ export declare function createAttestationTool(sandboxManager: SandboxManager, se
                 type: string;
                 description: string;
             };
+            signature: {
+                type: string;
+                description: string;
+            };
         };
         required: string[];
     };
-    execute(input: z.infer<typeof InputSchema>): Promise<{
+    execute(input: AttestationInput): Promise<{
         success: boolean;
-        report: {
-            signature: string;
-            sandboxId: string;
-            platform: string;
-            timestamp: string;
-            nonce: string;
-            securityFeatures: {
-                feature: import("../types.js").SecurityFeature;
-                available: boolean;
-                enabled: boolean;
-                version: string | undefined;
-            }[];
-            tpm: {
-                quote: string;
-                pcrs: Record<number, string>;
-            } | undefined;
-            tee: {
-                quote: string;
-                taVersion: string;
-            } | undefined;
-        };
-    } | {
-        valid: boolean;
-        report: any;
-        checks: {
-            tpm: boolean;
-            tee: boolean;
-            signature: boolean;
-            freshness: boolean;
-        };
-        message: string;
-        error?: undefined;
-    } | {
-        valid: boolean;
         error: string;
+        sgxAvailable: boolean;
         report?: undefined;
-        checks?: undefined;
-        message?: undefined;
+        signature?: undefined;
+        timestamp?: undefined;
+        sgxVersion?: undefined;
+        valid?: undefined;
+    } | {
+        success: boolean;
+        report: string;
+        signature: string;
+        timestamp: number;
+        sgxVersion: "SGX1" | "SGX2" | "None" | undefined;
+        error?: undefined;
+        sgxAvailable?: undefined;
+        valid?: undefined;
+    } | {
+        success: boolean;
+        error: any;
+        sgxAvailable?: undefined;
+        report?: undefined;
+        signature?: undefined;
+        timestamp?: undefined;
+        sgxVersion?: undefined;
+        valid?: undefined;
+    } | {
+        success: boolean;
+        valid: boolean;
+        timestamp: number;
+        error?: undefined;
+        sgxAvailable?: undefined;
+        report?: undefined;
+        signature?: undefined;
+        sgxVersion?: undefined;
+    } | {
+        success: boolean;
+        error: any;
+        valid: boolean;
+        sgxAvailable?: undefined;
+        report?: undefined;
+        signature?: undefined;
+        timestamp?: undefined;
+        sgxVersion?: undefined;
     }>;
 };
 export {};

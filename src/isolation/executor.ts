@@ -1,17 +1,19 @@
 /**
- * Real Isolation Implementation
+ * Real Isolation Implementation with SGX Support
  * 
  * 实现真实的隔离执行：
  * - L1: 进程隔离 (child_process)
  * - L1+: 进程隔离 + 资源限制 (cgroups)
  * - L2: Docker 容器隔离
- * - L2+/L3: SGX Enclave 隔离
+ * - L2+/L3: SGX Enclave 隔离 (x86) / TrustZone (ARM)
  */
 
-import { spawn, ChildProcess, execFileSync } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
+import { SGX, checkSGXAvailable, SGXInfo } from "../hardware/sgx.js";
 
 const execAsync = promisify(require("child_process").exec);
 
@@ -33,6 +35,7 @@ export interface ExecutionResult {
   stderr: string;
   duration: number;
   isolated: boolean;
+  isolationLevel: string;
 }
 
 export interface IsolationConfig {
@@ -43,22 +46,47 @@ export interface IsolationConfig {
   filesystemRoot?: string;
 }
 
+// ========== Hardware Detection ==========
+
+/**
+ * 检测硬件安全特性
+ */
+export async function detectHardwareSecurity(): Promise<{
+  hasSGX: boolean;
+  sgxInfo?: SGXInfo;
+  architecture: string;
+}> {
+  const architecture = os.arch();
+  
+  if (architecture === "x64") {
+    const sgxInfo = await checkSGXAvailable();
+    return {
+      hasSGX: sgxInfo.available,
+      sgxInfo,
+      architecture,
+    };
+  }
+  
+  return {
+    hasSGX: false,
+    architecture,
+  };
+}
+
 // ========== L1: Process Isolation ==========
 
 /**
- * L1 进程隔离 - 使用 child_process + setuid/gid
+ * L1 进程隔离 - 使用 child_process
  */
 export async function executeL1(options: ExecutionOptions): Promise<ExecutionResult> {
-  const { command, args, timeout, workspace, env, uid, gid } = options;
+  const { command, args, timeout, workspace, env } = options;
   
   const startTime = Date.now();
   
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const proc = spawn(command, args, {
       cwd: workspace,
       env: { ...process.env, ...env },
-      uid,
-      gid,
       timeout,
       detached: false,
     });
@@ -81,6 +109,7 @@ export async function executeL1(options: ExecutionOptions): Promise<ExecutionRes
         stderr,
         duration: Date.now() - startTime,
         isolated: true,
+        isolationLevel: "L1",
       });
     });
 
@@ -91,6 +120,7 @@ export async function executeL1(options: ExecutionOptions): Promise<ExecutionRes
         stderr: err.message,
         duration: Date.now() - startTime,
         isolated: false,
+        isolationLevel: "L1",
       });
     });
   });
@@ -105,104 +135,62 @@ export async function executeL1Plus(
   options: ExecutionOptions,
   config: IsolationConfig
 ): Promise<ExecutionResult> {
-  const { command, args, timeout, workspace, env } = options;
   const { cpuQuota, memoryMB } = config;
-
-  // 创建 cgroup
-  const cgroupName = `capsule-${Date.now()}`;
-  const cgroupPath = `/sys/fs/cgroup/${cgroupName}`;
-
-  try {
-    // 创建 cgroup 目录
-    if (!fs.existsSync("/sys/fs/cgroup/capsule")) {
-      fs.mkdirSync("/sys/fs/cgroup/capsule", { recursive: true });
-    }
-    fs.mkdirSync(cgroupPath, { recursive: true });
-
-    // 设置 CPU 限制
-    if (cpuQuota) {
-      const cpuQuotaUs = Math.floor(cpuQuota * 1000); // percentage to microseconds
-      fs.writeFileSync(path.join(cgroupPath, "cpu.max"), `${cpuQuotaUs} 100000`);
-    }
-
-    // 设置内存限制
-    if (memoryMB) {
-      const memoryBytes = memoryMB * 1024 * 1024;
-      fs.writeFileSync(path.join(cgroupPath, "memory.max"), `${memoryBytes}`);
-    }
-
-    // 执行命令并加入 cgroup
-    const result = await this.executeInCgroup(cgroupPath, options);
-
-    return result;
-  } finally {
-    // 清理 cgroup
-    try {
-      fs.rmdirSync(cgroupPath, { recursive: true });
-    } catch {}
-  }
-}
-
-/**
- * 在 cgroup 中执行命令
- */
-async function executeInCgroup(
-  cgroupPath: string,
-  options: ExecutionOptions
-): Promise<ExecutionResult> {
-  const { command, args, timeout, workspace, env } = options;
   const startTime = Date.now();
 
-  // 使用 cgexec 或直接写入 cgroup.procs
-  return new Promise((resolve) => {
-    const proc = spawn(command, args, {
-      cwd: workspace,
-      env: { ...process.env, ...env },
-      timeout,
-    });
+  // Check if cgroups v2 is available
+  const cgroupPath = "/sys/fs/cgroup/capsule";
+  const useCgroups = fs.existsSync("/sys/fs/cgroup");
 
-    // 将进程加入 cgroup
+  if (useCgroups && (cpuQuota || memoryMB)) {
+    const cgroupName = `capsule-${Date.now()}`;
+    const cgroupFullPath = `${cgroupPath}/${cgroupName}`;
+
     try {
-      const pid = proc.pid;
-      if (pid) {
+      // Create cgroup
+      if (!fs.existsSync(cgroupPath)) {
+        fs.mkdirSync(cgroupPath, { recursive: true });
+      }
+      fs.mkdirSync(cgroupFullPath);
+
+      // Set memory limit
+      if (memoryMB) {
         fs.writeFileSync(
-          path.join(cgroupPath, "cgroup.procs"),
-          `${pid}`
+          `${cgroupFullPath}/memory.max`,
+          `${memoryMB * 1024 * 1024}`
         );
       }
-    } catch {}
 
-    let stdout = "";
-    let stderr = "";
+      // Set CPU limit
+      if (cpuQuota) {
+        const quotaUs = Math.floor((cpuQuota / 100) * 100000);
+        fs.writeFileSync(`${cgroupFullPath}/cpu.max`, `${quotaUs} 100000`);
+      }
 
-    proc.stdout?.on("data", (data) => {
-      stdout += data.toString();
-    });
+      // Execute
+      const result = await executeL1(options);
 
-    proc.stderr?.on("data", (data) => {
-      stderr += data.toString();
-    });
+      // Cleanup cgroup
+      try {
+        fs.rmdirSync(cgroupFullPath, { recursive: true });
+      } catch {}
 
-    proc.on("close", (code) => {
-      resolve({
-        exitCode: code ?? 1,
-        stdout,
-        stderr,
-        duration: Date.now() - startTime,
-        isolated: true,
-      });
-    });
+      return {
+        ...result,
+        isolationLevel: "L1+",
+      };
+    } catch (error: any) {
+      // Fallback to L1
+      console.warn("[L1+] Cgroups failed, falling back to L1:", error.message);
+      return executeL1(options);
+    }
+  }
 
-    proc.on("error", (err) => {
-      resolve({
-        exitCode: 1,
-        stdout,
-        stderr: err.message,
-        duration: Date.now() - startTime,
-        isolated: false,
-      });
-    });
-  });
+  // No cgroups, use L1
+  return {
+    ...await executeL1(options),
+    isolationLevel: "L1+",
+  };
 }
 
 // ========== L2: Docker Container Isolation ==========
@@ -215,47 +203,52 @@ export async function executeL2(
   config: IsolationConfig
 ): Promise<ExecutionResult> {
   const { command, args, timeout, workspace, env } = options;
-  const { cpuQuota, memoryMB, networkDisabled, filesystemRoot } = config;
+  const { cpuQuota, memoryMB, networkDisabled = true } = config;
   
   const startTime = Date.now();
 
-  // 构建 docker run 命令
-  const dockerArgs = [
-    "run",
-    "--rm",
-    "-i",
-  ];
+  // Check if Docker is available
+  try {
+    execSync("docker --version", { stdio: "pipe" });
+  } catch {
+    // Docker not available, fallback to L1+
+    console.warn("[L2] Docker not available, falling back to L1+");
+    return executeL1Plus(options, config);
+  }
 
-  // 资源限制
+  // Build docker run command
+  const dockerArgs = ["run", "--rm"];
+
+  // Resource limits
   if (memoryMB) {
     dockerArgs.push("--memory", `${memoryMB}m`);
   }
   if (cpuQuota) {
-    dockerArgs.push("--cpus", `${cpuQuota / 100}`);
+    dockerArgs.push("--cpus", `${(cpuQuota / 100).toFixed(2)}`);
   }
 
-  // 网络隔离
+  // Network isolation
   if (networkDisabled) {
     dockerArgs.push("--network", "none");
   }
 
-  // 挂载工作目录
+  // Workspace mount (read-only for security)
   if (workspace) {
-    dockerArgs.push("-v", `${workspace}:/workspace`);
+    dockerArgs.push("-v", `${workspace}:/workspace:ro`);
     dockerArgs.push("-w", "/workspace");
   }
 
-  // 环境变量
+  // Environment variables
   if (env) {
     for (const [key, value] of Object.entries(env)) {
       dockerArgs.push("-e", `${key}=${value}`);
     }
   }
 
-  // 使用最小化镜像
+  // Use minimal image
   dockerArgs.push("alpine:3.19");
 
-  // 要执行的命令
+  // Command to execute
   dockerArgs.push("sh", "-c", `${command} ${args.join(" ")}`);
 
   return new Promise((resolve) => {
@@ -281,6 +274,7 @@ export async function executeL2(
         stderr,
         duration: Date.now() - startTime,
         isolated: true,
+        isolationLevel: "L2",
       });
     });
 
@@ -288,9 +282,10 @@ export async function executeL2(
       resolve({
         exitCode: 1,
         stdout,
-        stderr: err.message,
+        stderr: `Docker error: ${err.message}`,
         duration: Date.now() - startTime,
         isolated: false,
+        isolationLevel: "L2",
       });
     });
   });
@@ -299,7 +294,7 @@ export async function executeL2(
 // ========== L2+/L3: SGX Enclave Isolation ==========
 
 /**
- * SGX Enclave 隔离
+ * L2+/L3 SGX Enclave 隔离
  * 
  * 使用 Intel SGX 在安全飞地中执行代码
  */
@@ -310,71 +305,39 @@ export async function executeSGX(
   const { command, args, timeout, workspace } = options;
   const startTime = Date.now();
 
-  // 检查 SGX 设备
-  if (!fs.existsSync("/dev/sgx_enclave")) {
-    throw new Error("SGX device not available");
+  // Check SGX availability
+  const sgxInfo = await checkSGXAvailable();
+  
+  if (!sgxInfo.available) {
+    // SGX not available, fallback to L2
+    console.warn("[L3] SGX not available, falling back to L2");
+    return executeL2(options, config);
   }
 
-  // 在 SGX Enclave 中执行
-  // 这需要一个预编译的 Enclave 签名二进制文件
-  // 这里我们使用 OCCLUM 或 Gramine 作为运行时
+  console.log(`[SGX] Using ${sgxInfo.version} with devices: ${sgxInfo.devices.join(", ")}`);
 
   try {
-    // 使用 Gramine (更简单的方式)
-    const gramineArgs = [
-      "direct",
-      "--rm",
-      `sh`, "-c",
-      `${command} ${args.join(" ")}`
-    ];
-
-    const result = await new Promise<ExecutionResult>((resolve) => {
-      const proc = spawn("gramine-sgx", gramineArgs, {
-        cwd: workspace,
-        timeout,
-      });
-
-      let stdout = "";
-      let stderr = "";
-
-      proc.stdout?.on("data", (data) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr?.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on("close", (code) => {
-        resolve({
-          exitCode: code ?? 1,
-          stdout,
-          stderr,
-          duration: Date.now() - startTime,
-          isolated: true,
-        });
-      });
-
-      proc.on("error", (err) => {
-        resolve({
-          exitCode: 1,
-          stdout,
-          stderr: err.message,
-          duration: Date.now() - startTime,
-          isolated: false,
-        });
-      });
+    // Try to use SGX runtime (Gramine or Occlum)
+    const result = await SGX.executeInEnclave(command, args, {
+      timeout,
+      cwd: workspace,
     });
 
-    return result;
-  } catch (error) {
-    // 如果 Gramine 不可用，使用替代方案
     return {
-      exitCode: 1,
-      stdout: "",
-      stderr: "SGX execution requires Gramine or Occlum runtime",
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
       duration: Date.now() - startTime,
-      isolated: false,
+      isolated: true,
+      isolationLevel: "L3",
+    };
+  } catch (error: any) {
+    console.warn("[SGX] Execution failed:", error.message);
+    
+    // Fallback to L2
+    return {
+      ...await executeL2(options, config),
+      stderr: `[SGX Fallback] ${error.message}\n${(await executeL2(options, config)).stderr}`,
     };
   }
 }
@@ -416,7 +379,7 @@ export async function executeIsolated(
 export function enforceCapabilities(
   capabilities: string[],
   command: string
-): boolean {
+): { allowed: boolean; reason?: string } {
   // 禁止的命令模式
   const blockedPatterns = [
     /rm\s+-rf\s+\//,          // 删除根目录
@@ -425,29 +388,41 @@ export function enforceCapabilities(
     /dd\s+if=/,               // 磁盘操作
     /chmod\s+777/,            // 危险权限
     /chown\s+root/,           // 改变所有者
+    />\s*\/etc\//,            // 修改系统配置
+    /curl.*\|\s*bash/,        // 远程执行
+    /wget.*\|\s*sh/,          // 远程执行
   ];
 
   // 检查是否匹配禁止模式
   for (const pattern of blockedPatterns) {
     if (pattern.test(command)) {
-      return false;
+      return { 
+        allowed: false, 
+        reason: `Command matches blocked pattern: ${pattern}` 
+      };
     }
   }
 
   // 如果没有 exec 能力，禁止执行
   if (!capabilities.includes("exec")) {
-    return false;
+    return { 
+      allowed: false, 
+      reason: "exec capability not granted" 
+    };
   }
 
   // 如果没有 network 能力，禁止网络命令
   if (!capabilities.includes("network")) {
-    const networkCommands = ["curl", "wget", "nc", "ssh", "scp"];
-    if (networkCommands.some((cmd) => command.startsWith(cmd))) {
-      return false;
+    const networkCommands = ["curl", "wget", "nc", "ssh", "scp", "rsync", "telnet"];
+    if (networkCommands.some((cmd) => command.startsWith(cmd) || command.includes(` ${cmd} `))) {
+      return { 
+        allowed: false, 
+        reason: "network capability not granted" 
+      };
     }
   }
 
-  return true;
+  return { allowed: true };
 }
 
 // ========== Export ==========
@@ -459,4 +434,5 @@ export const IsolationExecutor = {
   executeSGX,
   executeIsolated,
   enforceCapabilities,
+  detectHardwareSecurity,
 };

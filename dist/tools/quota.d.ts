@@ -11,16 +11,16 @@ declare const CheckInputSchema: z.ZodObject<{
     memoryMB: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     sandboxId: string;
+    memoryMB?: number | undefined;
     inferences?: number | undefined;
     tokens?: number | undefined;
     cpuSeconds?: number | undefined;
-    memoryMB?: number | undefined;
 }, {
     sandboxId: string;
+    memoryMB?: number | undefined;
     inferences?: number | undefined;
     tokens?: number | undefined;
     cpuSeconds?: number | undefined;
-    memoryMB?: number | undefined;
 }>;
 declare const RecordInputSchema: z.ZodObject<{
     sandboxId: z.ZodString;
@@ -30,16 +30,16 @@ declare const RecordInputSchema: z.ZodObject<{
     memoryMB: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     sandboxId: string;
+    memoryMB?: number | undefined;
     inferences?: number | undefined;
     tokens?: number | undefined;
     cpuSeconds?: number | undefined;
-    memoryMB?: number | undefined;
 }, {
     sandboxId: string;
+    memoryMB?: number | undefined;
     inferences?: number | undefined;
     tokens?: number | undefined;
     cpuSeconds?: number | undefined;
-    memoryMB?: number | undefined;
 }>;
 export declare function createQuotaTools(sandboxManager: SandboxManager): {
     quota_check: {
