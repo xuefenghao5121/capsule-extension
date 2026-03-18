@@ -1,48 +1,40 @@
 /**
- * Capsule Extension - Secure Sandbox for OpenClaw
+ * Capsule Extension - Hardware Security Enablement
  * 
- * Provides hardware-enforced isolation for skill execution:
- * - L1: Process isolation
- * - L1+: Process + cgroups resource limits
- * - L2: Docker container isolation
- * - L2+/L3: SGX Enclave (x86) / TrustZone (ARM)
+ * 核心目标：让 OpenClaw 能够利用硬件安全特性
  * 
- * Supports:
- * - x86: Intel SGX
- * - ARM: Kunpeng/TrustZone
+ * 提供的能力：
+ * 1. 检测 - 检测硬件安全特性
+ * 2. 使能 - 启用硬件安全特性
+ * 3. 验证 - 证明环境安全
+ * 4. 执行 - 在安全环境中执行
  */
 
 import { SandboxManager } from "./sandbox.js";
-import { 
-  detectHardwareSecurity, 
-} from "./isolation/executor.js";
-import { createExecSandboxTool } from "./tools/exec_sandbox.js";
-import { createSandboxTools } from "./tools/sandbox.js";
-import { createCapabilityTools } from "./tools/capability.js";
-import { createQuotaTools } from "./tools/quota.js";
-import { createAttestationTool } from "./tools/attestation.js";
-import { SGXInfo } from "./hardware/sgx.js";
+import { detectHardwareSecurity } from "./isolation/executor.js";
+import { createDetectTool } from "./tools/detect.js";
+import { createEnableTool } from "./tools/enable.js";
+import { createAttestTool } from "./tools/attest.js";
+import { createExecTool } from "./tools/exec.js";
 
 // Export types
 export * from "./types.js";
 
 // Extension configuration
 export interface CapsuleConfig {
-  defaultIsolationLevel?: "L1" | "L1+" | "L2" | "L2+" | "L3";
-  enableSGX?: boolean;
+  autoDetect?: boolean;  // 自动检测硬件
+  defaultIsolation?: "L1" | "L2" | "L3";
   enableAttestation?: boolean;
-  maxSandboxCount?: number;
 }
 
 // Default configuration
 const DEFAULT_CONFIG: CapsuleConfig = {
-  defaultIsolationLevel: "L1",
-  enableSGX: true,
+  autoDetect: true,
+  defaultIsolation: "L1",
   enableAttestation: true,
-  maxSandboxCount: 100,
 };
 
-// Tool interface (simplified)
+// Tool interface
 interface Tool {
   name: string;
   description: string;
@@ -50,7 +42,7 @@ interface Tool {
   execute: (input: any) => Promise<any>;
 }
 
-// Extension interface (simplified)
+// Extension interface
 interface Extension {
   name: string;
   version: string;
@@ -60,15 +52,25 @@ interface Extension {
   shutdown?: () => Promise<void>;
 }
 
-// Hardware security info
-interface HardwareSecurityInfo {
-  hasSGX: boolean;
-  sgxInfo?: SGXInfo;
-  architecture: string;
+// Hardware security info (cached)
+interface HardwareSecurityCache {
+  detected: boolean;
+  architecture?: string;
+  teeType?: string;
+  teeVersion?: string;
+  features?: {
+    attestation: boolean;
+    sealedStorage: boolean;
+    memoryEncryption: boolean;
+  };
 }
 
 /**
  * Create Capsule Extension
+ * 
+ * @example
+ * const extension = await createCapsuleExtension();
+ * openclaw.registerExtension(extension);
  */
 export async function createCapsuleExtension(config: CapsuleConfig = {}): Promise<Extension> {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
@@ -76,55 +78,62 @@ export async function createCapsuleExtension(config: CapsuleConfig = {}): Promis
   // Initialize sandbox manager
   const sandboxManager = new SandboxManager();
   
-  // Detect hardware security features
-  const hwSecurity: HardwareSecurityInfo = await detectHardwareSecurity();
+  // Hardware security cache
+  const hwCache: HardwareSecurityCache = { detected: false };
   
-  console.log("[Capsule] Hardware Security Detection:");
-  console.log(`  Architecture: ${hwSecurity.architecture}`);
-  console.log(`  SGX Available: ${hwSecurity.hasSGX}`);
-  if (hwSecurity.sgxInfo) {
-    console.log(`  SGX Version: ${hwSecurity.sgxInfo.version}`);
-    console.log(`  SGX Devices: ${hwSecurity.sgxInfo.devices.join(", ")}`);
+  // Auto-detect hardware if configured
+  if (finalConfig.autoDetect) {
+    const hwInfo = await detectHardwareSecurity();
+    hwCache.detected = true;
+    hwCache.architecture = hwInfo.architecture;
+    hwCache.teeType = hwInfo.hasSGX ? "sgx" : "none";
+    hwCache.teeVersion = hwInfo.sgxInfo?.version;
+    hwCache.features = {
+      attestation: hwInfo.hasSGX,
+      sealedStorage: hwInfo.hasSGX,
+      memoryEncryption: hwInfo.hasSGX,
+    };
   }
 
-  // Create tools
+  // Create tools focused on hardware security enablement
   const tools: Tool[] = [
-    createExecSandboxTool(sandboxManager, hwSecurity),
-    ...createSandboxTools(sandboxManager),
-    ...createCapabilityTools(sandboxManager),
-    ...createQuotaTools(sandboxManager),
+    // 1. 检测硬件安全特性
+    createDetectTool(hwCache),
+    
+    // 2. 启用硬件安全特性
+    createEnableTool(hwCache),
+    
+    // 3. 证明/验证
+    createAttestTool(hwCache),
+    
+    // 4. 安全执行
+    createExecTool(sandboxManager, hwCache, finalConfig),
   ];
-
-  // Add attestation tool if SGX is available
-  if (hwSecurity.hasSGX && finalConfig.enableAttestation) {
-    tools.push(createAttestationTool(hwSecurity));
-  }
 
   return {
     name: "capsule",
     version: "2.0.0",
-    description: "Secure sandbox with hardware-enforced isolation (SGX/TrustZone)",
+    description: "Hardware Security Enablement for OpenClaw (SGX/TrustZone)",
     
     tools,
     
     async initialize() {
-      console.log("[Capsule] Extension initialized");
-      console.log(`[Capsule] Default isolation level: ${finalConfig.defaultIsolationLevel}`);
-      console.log(`[Capsule] SGX support: ${hwSecurity.hasSGX ? "Available" : "Not available"}`);
+      console.log("[Capsule] Hardware Security Enablement Extension");
+      console.log("[Capsule] Architecture:", hwCache.architecture || "unknown");
+      console.log("[Capsule] TEE:", hwCache.teeType || "none", hwCache.teeVersion || "");
+      console.log("[Capsule] Features:", JSON.stringify(hwCache.features));
     },
     
     async shutdown() {
-      // Cleanup all sandboxes
       const sandboxes = sandboxManager.list();
       for (const sandbox of sandboxes) {
         try {
           await sandboxManager.destroy(sandbox.id);
         } catch {}
       }
-      console.log("[Capsule] Extension shutdown complete");
+      console.log("[Capsule] Shutdown complete");
     },
   };
 }
 
-// Default export
 export default createCapsuleExtension;
