@@ -5,21 +5,20 @@
  */
 
 import { z } from "zod";
-import * as fs from "fs";
-import * as os from "os";
 import { SandboxManager } from "../sandbox.js";
 import { 
   executeIsolated, 
   enforceCapabilities,
   detectHardwareSecurity,
   ExecutionOptions,
-  ExecutionResult,
+  IsolationResult,
 } from "../isolation/executor.js";
 import { SGXInfo } from "../hardware/sgx.js";
 import {
+  ExecutionResult,
+  ExecutionId,
   SandboxError,
   CapabilityDeniedError,
-  QuotaExceededError,
 } from "../types.js";
 
 const InputSchema = z.object({
@@ -103,7 +102,6 @@ Security Features:
           throw new SandboxError(`Sandbox ${sandboxId} not found`, "NOT_FOUND", sandboxId);
         }
       } else {
-        // Create ephemeral sandbox
         sandbox = await sandboxManager.create({
           name: `exec-${Date.now()}`,
           isolationLevel,
@@ -127,14 +125,14 @@ Security Features:
         console.warn(`[Capsule] SGX not available, falling back to L2`);
       }
 
-      const executionId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const executionId: ExecutionId = `exec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const startTime = Date.now();
 
       try {
         sandboxManager.setStatus(sandbox.id, "running");
 
         // Execute with real isolation
-        const result = await executeIsolated(
+        const result: IsolationResult = await executeIsolated(
           isolationLevel,
           {
             command,

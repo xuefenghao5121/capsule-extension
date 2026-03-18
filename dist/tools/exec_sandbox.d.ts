@@ -5,8 +5,8 @@
  */
 import { z } from "zod";
 import { SandboxManager } from "../sandbox.js";
-import { ExecutionResult } from "../isolation/executor.js";
 import { SGXInfo } from "../hardware/sgx.js";
+import { ExecutionResult } from "../types.js";
 declare const InputSchema: z.ZodObject<{
     command: z.ZodString;
     args: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;

@@ -12,15 +12,14 @@
  * - ARM: Kunpeng/TrustZone
  */
 import { SandboxManager } from "./sandbox.js";
-import { detectHardwareSecurity } from "./isolation/executor.js";
+import { detectHardwareSecurity, } from "./isolation/executor.js";
 import { createExecSandboxTool } from "./tools/exec_sandbox.js";
-import { createSandboxTool } from "./tools/sandbox.js";
-import { createCapabilityTool } from "./tools/capability.js";
-import { createQuotaTool } from "./tools/quota.js";
+import { createSandboxTools } from "./tools/sandbox.js";
+import { createCapabilityTools } from "./tools/capability.js";
+import { createQuotaTools } from "./tools/quota.js";
 import { createAttestationTool } from "./tools/attestation.js";
 // Export types
 export * from "./types.js";
-export * from "./isolation/executor.js";
 // Default configuration
 const DEFAULT_CONFIG = {
     defaultIsolationLevel: "L1",
@@ -47,9 +46,9 @@ export async function createCapsuleExtension(config = {}) {
     // Create tools
     const tools = [
         createExecSandboxTool(sandboxManager, hwSecurity),
-        createSandboxTool(sandboxManager),
-        createCapabilityTool(sandboxManager),
-        createQuotaTool(sandboxManager),
+        ...createSandboxTools(sandboxManager),
+        ...createCapabilityTools(sandboxManager),
+        ...createQuotaTools(sandboxManager),
     ];
     // Add attestation tool if SGX is available
     if (hwSecurity.hasSGX && finalConfig.enableAttestation) {

@@ -65,7 +65,6 @@ Security Features:
                 }
             }
             else {
-                // Create ephemeral sandbox
                 sandbox = await sandboxManager.create({
                     name: `exec-${Date.now()}`,
                     isolationLevel,

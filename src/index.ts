@@ -12,22 +12,19 @@
  * - ARM: Kunpeng/TrustZone
  */
 
-import type { Extension, Tool } from "@openclaw/plugin-sdk";
 import { SandboxManager } from "./sandbox.js";
 import { 
   detectHardwareSecurity, 
-  executeIsolated, 
-  enforceCapabilities 
 } from "./isolation/executor.js";
 import { createExecSandboxTool } from "./tools/exec_sandbox.js";
-import { createSandboxTool } from "./tools/sandbox.js";
-import { createCapabilityTool } from "./tools/capability.js";
-import { createQuotaTool } from "./tools/quota.js";
+import { createSandboxTools } from "./tools/sandbox.js";
+import { createCapabilityTools } from "./tools/capability.js";
+import { createQuotaTools } from "./tools/quota.js";
 import { createAttestationTool } from "./tools/attestation.js";
+import { SGXInfo } from "./hardware/sgx.js";
 
 // Export types
 export * from "./types.js";
-export * from "./isolation/executor.js";
 
 // Extension configuration
 export interface CapsuleConfig {
@@ -45,6 +42,31 @@ const DEFAULT_CONFIG: CapsuleConfig = {
   maxSandboxCount: 100,
 };
 
+// Tool interface (simplified)
+interface Tool {
+  name: string;
+  description: string;
+  inputSchema: any;
+  execute: (input: any) => Promise<any>;
+}
+
+// Extension interface (simplified)
+interface Extension {
+  name: string;
+  version: string;
+  description: string;
+  tools: Tool[];
+  initialize?: () => Promise<void>;
+  shutdown?: () => Promise<void>;
+}
+
+// Hardware security info
+interface HardwareSecurityInfo {
+  hasSGX: boolean;
+  sgxInfo?: SGXInfo;
+  architecture: string;
+}
+
 /**
  * Create Capsule Extension
  */
@@ -55,7 +77,7 @@ export async function createCapsuleExtension(config: CapsuleConfig = {}): Promis
   const sandboxManager = new SandboxManager();
   
   // Detect hardware security features
-  const hwSecurity = await detectHardwareSecurity();
+  const hwSecurity: HardwareSecurityInfo = await detectHardwareSecurity();
   
   console.log("[Capsule] Hardware Security Detection:");
   console.log(`  Architecture: ${hwSecurity.architecture}`);
@@ -68,9 +90,9 @@ export async function createCapsuleExtension(config: CapsuleConfig = {}): Promis
   // Create tools
   const tools: Tool[] = [
     createExecSandboxTool(sandboxManager, hwSecurity),
-    createSandboxTool(sandboxManager),
-    createCapabilityTool(sandboxManager),
-    createQuotaTool(sandboxManager),
+    ...createSandboxTools(sandboxManager),
+    ...createCapabilityTools(sandboxManager),
+    ...createQuotaTools(sandboxManager),
   ];
 
   // Add attestation tool if SGX is available

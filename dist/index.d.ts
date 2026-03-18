@@ -11,14 +11,26 @@
  * - x86: Intel SGX
  * - ARM: Kunpeng/TrustZone
  */
-import type { Extension } from "@openclaw/plugin-sdk";
 export * from "./types.js";
-export * from "./isolation/executor.js";
 export interface CapsuleConfig {
     defaultIsolationLevel?: "L1" | "L1+" | "L2" | "L2+" | "L3";
     enableSGX?: boolean;
     enableAttestation?: boolean;
     maxSandboxCount?: number;
+}
+interface Tool {
+    name: string;
+    description: string;
+    inputSchema: any;
+    execute: (input: any) => Promise<any>;
+}
+interface Extension {
+    name: string;
+    version: string;
+    description: string;
+    tools: Tool[];
+    initialize?: () => Promise<void>;
+    shutdown?: () => Promise<void>;
 }
 /**
  * Create Capsule Extension
