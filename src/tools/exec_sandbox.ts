@@ -12,6 +12,7 @@ import {
   SandboxError,
   CapabilityDeniedError,
   QuotaExceededError,
+  SecurityFeature,
 } from "../types.js";
 import { KunpengSecurity } from "../hardware/kunpeng.js";
 
@@ -115,11 +116,11 @@ Security Features:
       }
 
       // Apply security features
-      const appliedFeatures: string[] = [];
+      const appliedFeatures: SecurityFeature[] = [];
       for (const feature of securityFeatures) {
-        if (await security.isAvailable(feature)) {
-          await security.enable(feature, sandbox.id);
-          appliedFeatures.push(feature);
+        if (await security.isAvailable(feature as SecurityFeature)) {
+          await security.enable(feature as SecurityFeature, sandbox.id);
+          appliedFeatures.push(feature as SecurityFeature);
         }
       }
 
@@ -308,7 +309,7 @@ async function executeTrustZone(
   command: string,
   args: string[],
   options: { timeout: number },
-  security: KunpengSecurity
+  _security: KunpengSecurity
 ): Promise<RawResult> {
   console.log(`[L3] TrustZone: ${command}`);
   // Would require custom TA

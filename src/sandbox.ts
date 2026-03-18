@@ -2,7 +2,7 @@
  * Sandbox Manager - Core sandbox lifecycle management
  */
 
-import { v4 as uuid } from "crypto";
+import { randomUUID } from "crypto";
 import {
   SandboxId,
   Sandbox,
@@ -36,7 +36,9 @@ const ISOLATION_SECURITY: Record<IsolationLevel, SecurityConfig> = {
     tee: { enabled: true, provider: "itrustee" },
   },
   L3: {
-    trustzone: true as unknown as SecurityConfig,
+    mte: { enabled: true, mode: "sync" },
+    pac: { enabled: true, keys: ["IA", "IB", "DA", "DB"] },
+    tee: { enabled: true, provider: "itrustee" },
   },
 };
 
@@ -191,7 +193,7 @@ export class SandboxManager {
   // ========== Private ==========
 
   private generateId(): SandboxId {
-    return `sbx-${uuid().slice(0, 8)}`;
+    return `sbx-${randomUUID().slice(0, 8)}`;
   }
 
   private async initializeIsolation(sandbox: Sandbox): Promise<void> {
