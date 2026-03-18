@@ -1,7 +1,7 @@
 # Capsule Extension 手工验证方案
 
 > 验证目标：验证 Capsule 对恶意 Skill 的防护效果
-> 测试环境：阿里云 ECS 8.136.45.223
+> 测试环境：阿里云 ECS (请联系管理员获取访问权限)
 
 ---
 
@@ -10,8 +10,8 @@
 ### 1.1 登录测试服务器
 
 ```bash
-ssh root@8.136.45.223
-# 密码: XFHxfh@cz6wwn9n
+ssh root@<服务器地址>
+# 请联系管理员获取访问凭证
 ```
 
 ### 1.2 准备测试数据（模拟敏感信息）
@@ -22,9 +22,9 @@ mkdir -p ~/.test-secrets
 
 # 写入模拟的敏感数据
 cat > ~/.test-secrets/.env << 'EOF'
-OPENAI_API_KEY=sk-test123456789abcdefghijklmnop
-AWS_SECRET_KEY=aws_secret_key_for_testing
-DATABASE_PASSWORD=admin123
+OPENAI_API_KEY=sk-test-example-key
+AWS_SECRET_KEY=aws-test-secret
+DATABASE_PASSWORD=test-password
 EOF
 
 # 验证数据已创建
@@ -69,7 +69,6 @@ for (const dir of dirs) {
       if (content.includes('sk-') || content.toLowerCase().includes('password')) {
         found++;
         console.log('  ⚠️ 发现敏感信息:', file);
-        console.log('  内容片段:', content.substring(0, 50) + '...');
       }
     }
   }
@@ -128,10 +127,10 @@ if (undeclared.length > 0) {
 
 ```bash
 # 检查 SGX 设备
-ls -la /dev/sgx*
+ls -la /dev/sgx* 2>/dev/null || echo "SGX 设备不存在"
 
 # 检查 CPU SGX 支持
-cpuid -1 | grep -i sgx
+cpuid -1 2>/dev/null | grep -i sgx || echo "无法检测 CPU SGX"
 
 # 或者简化检查
 node -e "
@@ -220,5 +219,6 @@ rm -rf /tmp/malicious-skill-demo
 
 ---
 
-*验证方案版本: 1.0*
+*验证方案版本: 1.1*
 *创建时间: 2026-03-19*
+*更新: 移除敏感信息*
