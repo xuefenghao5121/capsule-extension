@@ -1,44 +1,50 @@
 /**
- * exec_sandbox Tool - Execute commands in sandboxed environment
+ * Secure Execution Tool
  *
- * Real isolation implementation with SGX support
+ * 让 OpenClaw 可以在安全隔离环境中执行代码
  */
 import { z } from "zod";
 import { SandboxManager } from "../sandbox.js";
-import { SGXInfo } from "../hardware/sgx.js";
-import { ExecutionResult } from "../types.js";
 declare const InputSchema: z.ZodObject<{
     command: z.ZodString;
     args: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
-    sandboxId: z.ZodOptional<z.ZodString>;
-    isolationLevel: z.ZodOptional<z.ZodEnum<["L1", "L1+", "L2", "L2+", "L3"]>>;
-    timeout: z.ZodOptional<z.ZodNumber>;
+    isolation: z.ZodOptional<z.ZodEnum<["L1", "L2", "L3"]>>;
     workspace: z.ZodOptional<z.ZodString>;
     env: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+    timeout: z.ZodOptional<z.ZodNumber>;
+    attestBefore: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     command: string;
     timeout?: number | undefined;
-    isolationLevel?: "L1" | "L2" | "L2+" | "L3" | "L1+" | undefined;
     args?: string[] | undefined;
     workspace?: string | undefined;
     env?: Record<string, string> | undefined;
-    sandboxId?: string | undefined;
+    isolation?: "L1" | "L2" | "L3" | undefined;
+    attestBefore?: boolean | undefined;
 }, {
     command: string;
     timeout?: number | undefined;
-    isolationLevel?: "L1" | "L2" | "L2+" | "L3" | "L1+" | undefined;
     args?: string[] | undefined;
     workspace?: string | undefined;
     env?: Record<string, string> | undefined;
-    sandboxId?: string | undefined;
+    isolation?: "L1" | "L2" | "L3" | undefined;
+    attestBefore?: boolean | undefined;
 }>;
 type ExecInput = z.infer<typeof InputSchema>;
-interface HardwareSecurity {
-    hasSGX: boolean;
-    sgxInfo?: SGXInfo;
-    architecture: string;
+interface HardwareCache {
+    detected: boolean;
+    architecture?: string;
+    teeType?: string;
+    enabled?: {
+        sgx: boolean;
+        attestation: boolean;
+        sealedStorage: boolean;
+    };
 }
-export declare function createExecSandboxTool(sandboxManager: SandboxManager, hwSecurity: HardwareSecurity): {
+interface CapsuleConfig {
+    defaultIsolation?: "L1" | "L2" | "L3";
+}
+export declare function createExecTool(sandboxManager: SandboxManager, hwCache: HardwareCache, config: CapsuleConfig): {
     name: string;
     description: string;
     inputSchema: {
@@ -54,15 +60,10 @@ export declare function createExecSandboxTool(sandboxManager: SandboxManager, hw
                     type: string;
                 };
             };
-            sandboxId: {
-                type: string;
-            };
-            isolationLevel: {
+            isolation: {
                 type: string;
                 enum: string[];
-            };
-            timeout: {
-                type: string;
+                description: string;
             };
             workspace: {
                 type: string;
@@ -73,10 +74,28 @@ export declare function createExecSandboxTool(sandboxManager: SandboxManager, hw
                     type: string;
                 };
             };
+            timeout: {
+                type: string;
+            };
+            attestBefore: {
+                type: string;
+            };
         };
         required: string[];
     };
-    execute(input: ExecInput): Promise<ExecutionResult>;
+    execute(input: ExecInput): Promise<{
+        success: boolean;
+        exitCode: number;
+        stdout: string;
+        stderr: string;
+        duration: number;
+        isolation: string;
+        attestation?: {
+            report: string;
+            signature: string;
+        };
+        error?: string;
+    }>;
 };
 export {};
-//# sourceMappingURL=exec_sandbox.d.ts.map
+//# sourceMappingURL=exec.d.ts.map

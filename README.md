@@ -1,199 +1,175 @@
-# Capsule OpenClaw Extension
+# Capsule - Sandbox-centric Security for AI Agents
 
-> **Sandbox-centric Security for OpenClaw** - 鲲鹏硬件优化版
+> **安装即用，自动检测硬件安全特性**
+
+## 特性
+
+- ✅ **零配置** - 安装后自动检测硬件，启用最佳安全特性
+- ✅ **插件化** - 核心极简，安全特性按需加载
+- ✅ **跨平台** - x86 SGX/TDX/SEV 和 ARM MTE/PAC/TEE 统一接口
+- ✅ **渐进增强** - 无硬件时降级运行，有硬件时自动加速
 
 ## 安装
 
 ```bash
-# 从本地安装
+# 安装到 OpenClaw 扩展目录
 cd /root/.openclaw/extensions
 git clone https://github.com/xuefenghao5121/capsule-extension.git capsule
-
-# 安装依赖
 cd capsule
 npm install
-
-# 构建
 npm run build
 ```
 
-## 配置
+## 快速开始
 
-```yaml
-# openclaw.config.yaml
-extensions:
-  capsule:
-    enabled: true
-    config:
-      workspaceRoot: "./capsule-workspace"
-      maxSandboxes: 100
-      securityEnabled: true
-      defaultIsolation: "L1"
-```
-
-## 工具列表
-
-### 沙箱管理
-
-| 工具 | 说明 |
-|------|------|
-| `sandbox_create` | 创建隔离沙箱 |
-| `sandbox_destroy` | 销毁沙箱 |
-| `sandbox_list` | 列出所有沙箱 |
-
-### 安全执行
-
-| 工具 | 说明 |
-|------|------|
-| `exec_sandbox` | 在沙箱中安全执行命令 |
-
-### 能力管理
-
-| 工具 | 说明 |
-|------|------|
-| `capability_check` | 检查能力 |
-| `capability_grant` | 授予权限 |
-| `capability_revoke` | 撤销权限 |
-
-### 配额管理
-
-| 工具 | 说明 |
-|------|------|
-| `quota_check` | 检查配额 |
-| `quota_record` | 记录使用 |
-
-### 证明
-
-| 工具 | 说明 |
-|------|------|
-| `attestation` | 生成/验证证明报告 |
-
-## 隔离级别
-
-| 级别 | 隔离方式 | 硬件特性 | 适用场景 |
-|------|----------|----------|----------|
-| **L0** | 无隔离 | PAC | 可信代码 |
-| **L1** | 进程级 | - | 常规执行 |
-| **L1+** | 进程 + MTE/PAC | MTE, PAC | 安全增强 |
-| **L2** | Docker | - | 容器隔离 |
-| **L2+** | Docker + TEE | iTrustee | 机密计算 |
-| **L3** | TrustZone | Secure World | 最高安全 |
-
-## 使用示例
-
-### 创建沙箱
+### 1. 自动检测硬件
 
 ```typescript
-// 创建 L1+ 隔离沙箱
-const result = await capsule.tools.sandbox_create.execute({
+import { Capsule } from "capsule";
+
+const capsule = new Capsule();
+await capsule.init();
+
+// 自动打印检测结果：
+// ┌─ Hardware Detection ─────────────────────┐
+// │ Architecture: x64                         │
+// │ Vendor:       intel                       │
+// ├───────────────────────────────────────────┤
+// │ x86 Security Features:                    │
+// │   SGX:      ✅ v2                         │
+// │   TDX:      ❌ Not available              │
+// │   SEV:      ❌ Not available              │
+// ├───────────────────────────────────────────┤
+// │ Recommended Isolation: L3                 │
+// └───────────────────────────────────────────┘
+```
+
+### 2. 创建沙箱并执行命令
+
+```typescript
+// 创建沙箱（自动选择最佳隔离级别）
+const sandbox = await capsule.createSandbox({
   name: "my-agent",
-  isolationLevel: "L1+",
-  capabilities: ["file_read", "file_write", "exec"],
+  capabilities: ["exec", "file_read", "file_write"],
   quota: {
-    maxInferencePerHour: 100,
-    maxTokensPerDay: 10000,
+    maxCpuPercent: 50,
     maxMemoryMB: 512,
+    timeout: 60000,
   },
 });
 
-console.log(result.sandbox.id); // sbx-xxxxxx
+// 执行命令
+const result = await capsule.execute(sandbox.id, "npm", ["test"]);
+console.log(result.stdout);
+
+// 清理
+await capsule.destroySandbox(sandbox.id);
 ```
 
-### 安全执行命令
+## 隔离级别
+
+| 级别 | 隔离方式 | 硬件需求 | 安全强度 |
+|------|----------|----------|---------|
+| **L1** | 进程级 | 无 | 🟢 基础隔离 |
+| **L2** | Docker 容器 | Docker | 🔵 容器隔离 |
+| **L2+** | 机密容器 | SGX/TDX/SEV | 🔵🔵 机密计算 |
+| **L3** | 硬件隔离 | SGX/TDX/SEV | 🟣 最高安全 |
+
+## 硬件支持
+
+### x86 平台
+
+| 特性 | Intel | AMD | 用途 |
+|------|-------|-----|------|
+| **SGX** | ✅ | - | Enclave 安全执行 |
+| **TDX** | ✅ | - | 机密虚拟机 |
+| **SEV-SNP** | - | ✅ | 机密虚拟机 |
+
+### ARM 平台
+
+| 特性 | 鲲鹏 | Apple | 用途 |
+|------|------|-------|------|
+| **MTE** | ✅ | ❌ | 内存安全 |
+| **PAC** | ✅ | ✅ | 指针认证 |
+| **TEE** | ✅ | ❌ | 可信执行环境 |
+| **SVE** | ✅ | ❌ | 向量加速 |
+
+## 插件系统
+
+### 自动加载流程
+
+```
+启动
+  │
+  ├─ 检测 CPU 架构 (x64 / arm64)
+  │
+  ├─ 加载对应插件
+  │   ├─ x64 → x86 Plugin (SGX/TDX/SEV)
+  │   └─ arm64 → ARM Plugin (MTE/PAC/TEE)
+  │
+  ├─ 检测硬件特性
+  │   └─ 通过 /proc/cpuinfo, /sys, dmesg 等
+  │
+  ├─ 选择最佳隔离级别
+  │   └─ 有 SGX/TDX/SEV → L3
+  │   └─ 无硬件 → L1
+  │
+  └─ 初始化完成
+```
+
+### 自定义插件
 
 ```typescript
-// 在沙箱中执行命令
-const result = await capsule.tools.exec_sandbox.execute({
-  command: "npm install",
-  sandboxId: "sbx-xxxxxx",
-  isolationLevel: "L1+",
-  securityFeatures: ["mte", "pac"],
-  timeout: 60000,
-});
+import { SecurityPlugin, pluginRegistry } from "capsule";
+
+const myPlugin: SecurityPlugin = {
+  name: "my-security",
+  platform: "x86",
+  features: ["custom-feature"],
+  
+  async detect() {
+    return {
+      architecture: "x64",
+      features: { /* ... */ },
+      recommended: { isolationLevel: "L2", plugin: "my-security" },
+    };
+  },
+  
+  async init(info) {
+    console.log("Initializing custom security...");
+    return true;
+  },
+};
+
+// 注册插件
+pluginRegistry.register(myPlugin);
 ```
 
-### 能力管理
-
-```typescript
-// 检查能力
-const check = await capsule.tools.capability_check.execute({
-  sandboxId: "sbx-xxxxxx",
-  capability: "exec",
-});
-
-// 授予能力
-await capsule.tools.capability_grant.execute({
-  sandboxId: "sbx-xxxxxx",
-  capabilities: ["network", "browser"],
-});
-```
-
-### 远程证明
-
-```typescript
-// 生成证明报告
-const report = await capsule.tools.attestation.execute({
-  action: "generate",
-  sandboxId: "sbx-xxxxxx",
-  nonce: "random-nonce-123",
-});
-
-// 验证证明
-const verify = await capsule.tools.attestation.execute({
-  action: "verify",
-  report: report.report,
-});
-```
-
-## 硬件安全特性
-
-### MTE (Memory Tagging Extension)
+## 测试
 
 ```bash
-# 启用 MTE
-exec_sandbox({
-  command: "node app.js",
-  securityFeatures: ["mte"],
-  isolationLevel: "L1+"
-})
-```
+# 运行测试
+npm test
 
-### PAC (Pointer Authentication)
-
-```bash
-# 启用 PAC
-exec_sandbox({
-  command: "node app.js",
-  securityFeatures: ["pac"],
-  isolationLevel: "L1+"
-})
-```
-
-### TEE (iTrustee)
-
-```bash
-# 使用 TEE 隔离
-exec_sandbox({
-  command: "process-sensitive-data",
-  isolationLevel: "L2+"
-})
+# 快速验证
+npx tsx scripts/test.ts
 ```
 
 ## 项目结构
 
 ```
 src/
-├── index.ts           # 入口
-├── types.ts           # 类型定义
-├── sandbox.ts         # 沙箱管理器
-├── tools/
-│   ├── exec_sandbox.ts  # 安全执行
-│   ├── sandbox.ts       # 沙箱管理
-│   ├── capability.ts    # 能力管理
-│   ├── quota.ts         # 配额管理
-│   └── attestation.ts   # 远程证明
-└── hardware/
-    └── kunpeng.ts       # 鲲鹏安全接口
+├── index.ts              # 入口，自动检测+加载
+├── core/
+│   └── sandbox.ts        # 核心沙箱管理
+└── plugins/
+    ├── index.ts          # 插件加载器
+    ├── x86/              # x86 安全插件
+    │   └── index.ts
+    ├── arm/              # ARM 安全插件
+    │   └── index.ts
+    └── guardrails/       # Guardrails 插件
+        └── index.ts
 ```
 
 ## 许可证

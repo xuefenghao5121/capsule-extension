@@ -1,40 +1,58 @@
 /**
- * Capsule Extension - Secure Sandbox for OpenClaw
+ * Capsule - Sandbox-centric Security for AI Agents
  *
- * Provides hardware-enforced isolation for skill execution:
- * - L1: Process isolation
- * - L1+: Process + cgroups resource limits
- * - L2: Docker container isolation
- * - L2+/L3: SGX Enclave (x86) / TrustZone (ARM)
- *
- * Supports:
- * - x86: Intel SGX
- * - ARM: Kunpeng/TrustZone
+ * 安装即用，自动检测硬件安全特性
  */
-export * from "./types.js";
+export { SandboxManager, type Sandbox, type SandboxConfig, type SandboxId, type IsolationLevel, type SandboxStatus, type ResourceQuota, type ExecutionResult, } from "./core/sandbox.js";
+export { pluginRegistry, loadPlugins, type HardwareInfo, type SecurityPlugin } from "./plugins/index.js";
+import { Sandbox, SandboxConfig, ExecutionResult } from "./core/sandbox.js";
+import { HardwareInfo } from "./plugins/index.js";
 export interface CapsuleConfig {
-    defaultIsolationLevel?: "L1" | "L1+" | "L2" | "L2+" | "L3";
-    enableSGX?: boolean;
-    enableAttestation?: boolean;
-    maxSandboxCount?: number;
+    workspaceRoot?: string;
+    autoDetect?: boolean;
 }
-interface Tool {
-    name: string;
-    description: string;
-    inputSchema: any;
-    execute: (input: any) => Promise<any>;
+export declare class Capsule {
+    private sandboxManager;
+    private hardwareInfo;
+    private activePlugin;
+    private initialized;
+    constructor(config?: CapsuleConfig);
+    /**
+     * 初始化 Capsule
+     * - 自动检测硬件
+     * - 自动加载插件
+     * - 自动使能安全特性
+     */
+    init(): Promise<void>;
+    /**
+     * 创建沙箱
+     */
+    createSandbox(config: SandboxConfig): Promise<Sandbox>;
+    /**
+     * 执行命令
+     */
+    execute(sandboxId: string, command: string, args?: string[]): Promise<ExecutionResult>;
+    /**
+     * 销毁沙箱
+     */
+    destroySandbox(sandboxId: string): Promise<void>;
+    /**
+     * 获取硬件信息
+     */
+    getHardwareInfo(): HardwareInfo | null;
+    /**
+     * 获取推荐的隔离级别
+     */
+    getRecommendedIsolation(): string;
+    /**
+     * 列出所有沙箱
+     */
+    listSandboxes(): Sandbox[];
+    private ensureInit;
+    private recommendIsolation;
+    private printHardwareInfo;
+    private formatFeature;
 }
-interface Extension {
-    name: string;
-    version: string;
-    description: string;
-    tools: Tool[];
-    initialize?: () => Promise<void>;
-    shutdown?: () => Promise<void>;
-}
-/**
- * Create Capsule Extension
- */
-export declare function createCapsuleExtension(config?: CapsuleConfig): Promise<Extension>;
-export default createCapsuleExtension;
+export declare const capsule: Capsule;
+export declare function quickStart(): Promise<Capsule>;
 //# sourceMappingURL=index.d.ts.map

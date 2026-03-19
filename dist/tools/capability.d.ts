@@ -9,30 +9,30 @@ declare const CheckInputSchema: z.ZodObject<{
     capability: z.ZodEnum<["file_read", "file_write", "exec", "network", "browser", "memory", "sessions", "tools", "spawn"]>;
 }, "strip", z.ZodTypeAny, {
     sandboxId: string;
-    capability: "file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn";
+    capability: "exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools";
 }, {
     sandboxId: string;
-    capability: "file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn";
+    capability: "exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools";
 }>;
 declare const GrantInputSchema: z.ZodObject<{
     sandboxId: z.ZodString;
     capabilities: z.ZodArray<z.ZodEnum<["file_read", "file_write", "exec", "network", "browser", "memory", "sessions", "tools", "spawn"]>, "many">;
 }, "strip", z.ZodTypeAny, {
+    capabilities: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[];
     sandboxId: string;
-    capabilities: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[];
 }, {
+    capabilities: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[];
     sandboxId: string;
-    capabilities: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[];
 }>;
 declare const RevokeInputSchema: z.ZodObject<{
     sandboxId: z.ZodString;
     capabilities: z.ZodArray<z.ZodEnum<["file_read", "file_write", "exec", "network", "browser", "memory", "sessions", "tools", "spawn"]>, "many">;
 }, "strip", z.ZodTypeAny, {
+    capabilities: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[];
     sandboxId: string;
-    capabilities: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[];
 }, {
+    capabilities: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[];
     sandboxId: string;
-    capabilities: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[];
 }>;
 export declare function createCapabilityTools(sandboxManager: SandboxManager): {
     capability_check: {
@@ -55,7 +55,7 @@ export declare function createCapabilityTools(sandboxManager: SandboxManager): {
         };
         execute(input: z.infer<typeof CheckInputSchema>): Promise<{
             sandboxId: string;
-            capability: "file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn";
+            capability: "exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools";
             granted: boolean;
         }>;
     };
@@ -83,7 +83,7 @@ export declare function createCapabilityTools(sandboxManager: SandboxManager): {
         execute(input: z.infer<typeof GrantInputSchema>): Promise<{
             success: boolean;
             sandboxId: string;
-            granted: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[];
+            granted: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[];
             currentCapabilities: Capability[];
         }>;
     };
@@ -111,7 +111,7 @@ export declare function createCapabilityTools(sandboxManager: SandboxManager): {
         execute(input: z.infer<typeof RevokeInputSchema>): Promise<{
             success: boolean;
             sandboxId: string;
-            revoked: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[];
+            revoked: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[];
             currentCapabilities: Capability[];
         }>;
     };

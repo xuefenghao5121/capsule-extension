@@ -16,43 +16,43 @@ declare const CreateInputSchema: z.ZodObject<{
         maxExecutionTimeSec: z.ZodOptional<z.ZodNumber>;
         maxWorkspaceMB: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
-        maxInferencePerHour?: number | undefined;
-        maxTokensPerDay?: number | undefined;
         maxCpuPercent?: number | undefined;
         maxMemoryMB?: number | undefined;
+        maxInferencePerHour?: number | undefined;
+        maxTokensPerDay?: number | undefined;
         maxExecutionTimeSec?: number | undefined;
         maxWorkspaceMB?: number | undefined;
     }, {
-        maxInferencePerHour?: number | undefined;
-        maxTokensPerDay?: number | undefined;
         maxCpuPercent?: number | undefined;
         maxMemoryMB?: number | undefined;
+        maxInferencePerHour?: number | undefined;
+        maxTokensPerDay?: number | undefined;
         maxExecutionTimeSec?: number | undefined;
         maxWorkspaceMB?: number | undefined;
     }>>;
     metadata: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
 }, "strip", z.ZodTypeAny, {
-    isolationLevel: "L0" | "L1" | "L1+" | "L2" | "L2+" | "L3";
+    isolationLevel: "L1" | "L2" | "L2+" | "L3" | "L0" | "L1+";
     name: string;
-    capabilities?: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[] | undefined;
+    capabilities?: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[] | undefined;
     quota?: {
-        maxInferencePerHour?: number | undefined;
-        maxTokensPerDay?: number | undefined;
         maxCpuPercent?: number | undefined;
         maxMemoryMB?: number | undefined;
+        maxInferencePerHour?: number | undefined;
+        maxTokensPerDay?: number | undefined;
         maxExecutionTimeSec?: number | undefined;
         maxWorkspaceMB?: number | undefined;
     } | undefined;
     metadata?: Record<string, unknown> | undefined;
 }, {
     name: string;
-    isolationLevel?: "L0" | "L1" | "L1+" | "L2" | "L2+" | "L3" | undefined;
-    capabilities?: ("file_read" | "file_write" | "exec" | "network" | "browser" | "memory" | "sessions" | "tools" | "spawn")[] | undefined;
+    isolationLevel?: "L1" | "L2" | "L2+" | "L3" | "L0" | "L1+" | undefined;
+    capabilities?: ("exec" | "file_read" | "file_write" | "spawn" | "network" | "browser" | "memory" | "sessions" | "tools")[] | undefined;
     quota?: {
-        maxInferencePerHour?: number | undefined;
-        maxTokensPerDay?: number | undefined;
         maxCpuPercent?: number | undefined;
         maxMemoryMB?: number | undefined;
+        maxInferencePerHour?: number | undefined;
+        maxTokensPerDay?: number | undefined;
         maxExecutionTimeSec?: number | undefined;
         maxWorkspaceMB?: number | undefined;
     } | undefined;

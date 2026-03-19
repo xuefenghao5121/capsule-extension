@@ -1,139 +1,221 @@
 /**
- * Capsule Extension - Hardware Security Enablement
+ * Capsule - Sandbox-centric Security for AI Agents
  * 
- * 核心目标：让 OpenClaw 能够利用硬件安全特性
- * 
- * 提供的能力：
- * 1. 检测 - 检测硬件安全特性
- * 2. 使能 - 启用硬件安全特性
- * 3. 验证 - 证明环境安全
- * 4. 执行 - 在安全环境中执行
+ * 安装即用，自动检测硬件安全特性
  */
 
-import { SandboxManager } from "./sandbox.js";
-import { detectHardwareSecurity } from "./isolation/executor.js";
-import { createDetectTool } from "./tools/detect.js";
-import { createEnableTool } from "./tools/enable.js";
-import { createAttestTool } from "./tools/attest.js";
-import { createExecTool } from "./tools/exec.js";
+// 从 core 导出所有类型
+export {
+  SandboxManager,
+  type Sandbox,
+  type SandboxConfig,
+  type SandboxId,
+  type IsolationLevel,
+  type SandboxStatus,
+  type ResourceQuota,
+  type ExecutionResult,
+} from "./core/sandbox.js";
 
-// Export types
-export * from "./types.js";
+// 从 plugins 导出
+export { 
+  pluginRegistry, 
+  loadPlugins, 
+  type HardwareInfo, 
+  type SecurityPlugin 
+} from "./plugins/index.js";
 
-// Extension configuration
+// ========== Capsule Instance ==========
+
+import { SandboxManager, Sandbox, SandboxConfig, ExecutionResult, IsolationLevel } from "./core/sandbox.js";
+import { pluginRegistry, loadPlugins, HardwareInfo, SecurityPlugin } from "./plugins/index.js";
+
 export interface CapsuleConfig {
-  autoDetect?: boolean;  // 自动检测硬件
-  defaultIsolation?: "L1" | "L2" | "L3";
-  enableAttestation?: boolean;
+  workspaceRoot?: string;
+  autoDetect?: boolean;
 }
 
-// Default configuration
-const DEFAULT_CONFIG: CapsuleConfig = {
-  autoDetect: true,
-  defaultIsolation: "L1",
-  enableAttestation: true,
-};
+export class Capsule {
+  private sandboxManager: SandboxManager;
+  private hardwareInfo: HardwareInfo | null = null;
+  private activePlugin: SecurityPlugin | null = null;
+  private initialized = false;
 
-// Tool interface
-interface Tool {
-  name: string;
-  description: string;
-  inputSchema: any;
-  execute: (input: any) => Promise<any>;
-}
-
-// Extension interface
-interface Extension {
-  name: string;
-  version: string;
-  description: string;
-  tools: Tool[];
-  initialize?: () => Promise<void>;
-  shutdown?: () => Promise<void>;
-}
-
-// Hardware security info (cached)
-interface HardwareSecurityCache {
-  detected: boolean;
-  architecture?: string;
-  teeType?: string;
-  teeVersion?: string;
-  features?: {
-    attestation: boolean;
-    sealedStorage: boolean;
-    memoryEncryption: boolean;
-  };
-}
-
-/**
- * Create Capsule Extension
- * 
- * @example
- * const extension = await createCapsuleExtension();
- * openclaw.registerExtension(extension);
- */
-export async function createCapsuleExtension(config: CapsuleConfig = {}): Promise<Extension> {
-  const finalConfig = { ...DEFAULT_CONFIG, ...config };
-  
-  // Initialize sandbox manager
-  const sandboxManager = new SandboxManager();
-  
-  // Hardware security cache
-  const hwCache: HardwareSecurityCache = { detected: false };
-  
-  // Auto-detect hardware if configured
-  if (finalConfig.autoDetect) {
-    const hwInfo = await detectHardwareSecurity();
-    hwCache.detected = true;
-    hwCache.architecture = hwInfo.architecture;
-    hwCache.teeType = hwInfo.hasSGX ? "sgx" : "none";
-    hwCache.teeVersion = hwInfo.sgxInfo?.version;
-    hwCache.features = {
-      attestation: hwInfo.hasSGX,
-      sealedStorage: hwInfo.hasSGX,
-      memoryEncryption: hwInfo.hasSGX,
-    };
+  constructor(config: CapsuleConfig = {}) {
+    this.sandboxManager = new SandboxManager(config.workspaceRoot);
+    
+    if (config.autoDetect !== false) {
+      // 自动初始化
+      this.init().catch(err => {
+        console.warn("[Capsule] Auto-init failed:", err);
+      });
+    }
   }
 
-  // Create tools focused on hardware security enablement
-  const tools: Tool[] = [
-    // 1. 检测硬件安全特性
-    createDetectTool(hwCache),
-    
-    // 2. 启用硬件安全特性
-    createEnableTool(hwCache),
-    
-    // 3. 证明/验证
-    createAttestTool(hwCache),
-    
-    // 4. 安全执行
-    createExecTool(sandboxManager, hwCache, finalConfig),
-  ];
+  /**
+   * 初始化 Capsule
+   * - 自动检测硬件
+   * - 自动加载插件
+   * - 自动使能安全特性
+   */
+  async init(): Promise<void> {
+    if (this.initialized) return;
 
-  return {
-    name: "capsule",
-    version: "2.0.0",
-    description: "Hardware Security Enablement for OpenClaw (SGX/TrustZone)",
+    console.log("╔══════════════════════════════════════════╗");
+    console.log("║         Capsule Security System          ║");
+    console.log("║    Sandbox-centric Security for AI       ║");
+    console.log("╚══════════════════════════════════════════╝");
+    console.log();
+
+    // 1. 加载插件
+    console.log("[Capsule] Loading plugins...");
+    await loadPlugins();
+
+    // 2. 检测硬件
+    console.log("[Capsule] Detecting hardware...");
+    this.hardwareInfo = await pluginRegistry.autoDetect();
+    this.activePlugin = pluginRegistry.getActivePlugin();
+
+    // 3. 打印检测信息
+    this.printHardwareInfo();
+
+    this.initialized = true;
+    console.log("[Capsule] ✅ Ready!");
+  }
+
+  /**
+   * 创建沙箱
+   */
+  async createSandbox(config: SandboxConfig): Promise<Sandbox> {
+    await this.ensureInit();
     
-    tools,
+    // 根据硬件能力调整隔离级别
+    const isolationLevel = this.recommendIsolation(config.isolationLevel);
     
-    async initialize() {
-      console.log("[Capsule] Hardware Security Enablement Extension");
-      console.log("[Capsule] Architecture:", hwCache.architecture || "unknown");
-      console.log("[Capsule] TEE:", hwCache.teeType || "none", hwCache.teeVersion || "");
-      console.log("[Capsule] Features:", JSON.stringify(hwCache.features));
-    },
+    return this.sandboxManager.create({
+      ...config,
+      isolationLevel,
+    });
+  }
+
+  /**
+   * 执行命令
+   */
+  async execute(
+    sandboxId: string, 
+    command: string, 
+    args: string[] = []
+  ): Promise<ExecutionResult> {
+    await this.ensureInit();
     
-    async shutdown() {
-      const sandboxes = sandboxManager.list();
-      for (const sandbox of sandboxes) {
-        try {
-          await sandboxManager.destroy(sandbox.id);
-        } catch {}
-      }
-      console.log("[Capsule] Shutdown complete");
-    },
-  };
+    const sandbox = this.sandboxManager.get(sandboxId);
+    if (!sandbox) {
+      throw new Error(`Sandbox ${sandboxId} not found`);
+    }
+
+    // 如果有安全插件且隔离级别 >= L2+，使用安全执行
+    if (this.activePlugin && 
+        sandbox.isolationLevel >= "L2+" && 
+        this.activePlugin.executeSecure) {
+      console.log(`[Capsule] Using secure execution (${this.activePlugin.name})`);
+      // TODO: 实现 secure context
+    }
+
+    return this.sandboxManager.execute(sandboxId, command, args);
+  }
+
+  /**
+   * 销毁沙箱
+   */
+  async destroySandbox(sandboxId: string): Promise<void> {
+    return this.sandboxManager.destroy(sandboxId);
+  }
+
+  /**
+   * 获取硬件信息
+   */
+  getHardwareInfo(): HardwareInfo | null {
+    return this.hardwareInfo;
+  }
+
+  /**
+   * 获取推荐的隔离级别
+   */
+  getRecommendedIsolation(): string {
+    return this.hardwareInfo?.recommended.isolationLevel || "L1";
+  }
+
+  /**
+   * 列出所有沙箱
+   */
+  listSandboxes(): Sandbox[] {
+    return this.sandboxManager.list();
+  }
+
+  // ========== Private ==========
+
+  private async ensureInit(): Promise<void> {
+    if (!this.initialized) {
+      await this.init();
+    }
+  }
+
+  private recommendIsolation(requested?: IsolationLevel): IsolationLevel {
+    if (requested) {
+      return requested;
+    }
+    return (this.hardwareInfo?.recommended.isolationLevel || "L1") as IsolationLevel;
+  }
+
+  private printHardwareInfo(): void {
+    if (!this.hardwareInfo) return;
+
+    const { architecture, vendor, features, recommended } = this.hardwareInfo;
+    
+    console.log();
+    console.log("┌─ Hardware Detection ─────────────────────┐");
+    console.log(`│ Architecture: ${architecture.padEnd(26)}│`);
+    console.log(`│ Vendor:       ${(vendor || "unknown").padEnd(26)}│`);
+    console.log("├───────────────────────────────────────────┤");
+    
+    if (architecture === "x64") {
+      console.log("│ x86 Security Features:                    │");
+      console.log(`│   SGX:      ${this.formatFeature(features.sgx, `v${(features.sgx as any)?.version || '-'}`)}│`);
+      console.log(`│   TDX:      ${this.formatFeature(features.tdx)}│`);
+      console.log(`│   SEV:      ${this.formatFeature(features.sev, `v${(features.sev as any)?.version || '-'}`)}│`);
+    } else if (architecture === "arm64") {
+      console.log("│ ARM Security Features:                    │");
+      console.log(`│   MTE:      ${this.formatFeature(features.mte)}│`);
+      console.log(`│   PAC:      ${this.formatFeature(features.pac)}│`);
+      console.log(`│   TEE:      ${this.formatFeature(features.tee, (features.tee as any)?.type)}│`);
+      console.log(`│   SVE:      ${this.formatFeature(features.sve, `${(features.sve as any)?.width || 256}-bit`)}│`);
+    }
+    
+    console.log("├───────────────────────────────────────────┤");
+    console.log(`│ Recommended Isolation: ${recommended.isolationLevel.padEnd(17)}│`);
+    console.log(`│ Active Plugin:         ${(recommended.plugin || "core").padEnd(17)}│`);
+    console.log("└───────────────────────────────────────────┘");
+    console.log();
+  }
+
+  private formatFeature(value: any, detail?: string): string {
+    if (!value) {
+      return "❌ Not available".padEnd(28);
+    }
+    if (detail) {
+      return `✅ ${detail}`.padEnd(28);
+    }
+    return "✅ Available".padEnd(28);
+  }
 }
 
-export default createCapsuleExtension;
+// ========== Default Instance ==========
+
+export const capsule = new Capsule({ autoDetect: true });
+
+// ========== Quick Start API ==========
+
+export async function quickStart(): Promise<Capsule> {
+  const instance = new Capsule();
+  await instance.init();
+  return instance;
+}

@@ -13,15 +13,15 @@ declare const InputSchema: z.ZodObject<{
     signature: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     action: "generate" | "verify";
+    data?: string | undefined;
     signature?: string | undefined;
     report?: string | undefined;
-    data?: string | undefined;
     nonce?: string | undefined;
 }, {
     action: "generate" | "verify";
+    data?: string | undefined;
     signature?: string | undefined;
     report?: string | undefined;
-    data?: string | undefined;
     nonce?: string | undefined;
 }>;
 type AttestationInput = z.infer<typeof InputSchema>;
