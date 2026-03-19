@@ -7,6 +7,8 @@
 export { SandboxManager, } from "./core/sandbox.js";
 // 从 plugins 导出
 export { pluginRegistry, loadPlugins } from "./plugins/index.js";
+// 从 guardrails 导出
+export { Gatekeeper, gatekeeper, } from "./guardrails/gatekeeper.js";
 // ========== Capsule Instance ==========
 import { SandboxManager } from "./core/sandbox.js";
 import { pluginRegistry, loadPlugins } from "./plugins/index.js";

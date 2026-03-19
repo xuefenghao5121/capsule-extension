@@ -1,12 +1,14 @@
 /**
- * Guardrails Plugin (Placeholder)
+ * Guardrails Plugin
  *
- * 支持：Input Rails, Output Rails, Execution Rails
+ * Capsule 自研 Guardrails 系统
+ * 设计哲学：Guardrails ≈ Gatekeeper
  */
+import { Gatekeeper, gatekeeper } from "../../guardrails/gatekeeper.js";
 const guardrailsPlugin = {
     name: "guardrails",
     platform: "universal",
-    features: ["input-rails", "output-rails", "execution-rails"],
+    features: ["input-gate", "output-gate", "jailbreak-detection", "injection-detection", "sensitive-data"],
     async detect() {
         return {
             architecture: process.arch,
@@ -18,9 +20,12 @@ const guardrailsPlugin = {
         };
     },
     async init(info) {
-        console.log("[Capsule Guardrails] Guardrails plugin initialized");
-        return false; // 暂时降级，等待集成 NeMo Guardrails
+        console.log("[Capsule Guardrails] Gatekeeper initialized");
+        console.log("[Capsule Guardrails] Input rules:", gatekeeper.listRules().input.join(", "));
+        console.log("[Capsule Guardrails] Output rules:", gatekeeper.listRules().output.join(", "));
+        return true;
     },
 };
 export default guardrailsPlugin;
+export { Gatekeeper, gatekeeper };
 //# sourceMappingURL=index.js.map

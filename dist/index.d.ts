@@ -5,6 +5,7 @@
  */
 export { SandboxManager, type Sandbox, type SandboxConfig, type SandboxId, type IsolationLevel, type SandboxStatus, type ResourceQuota, type ExecutionResult, } from "./core/sandbox.js";
 export { pluginRegistry, loadPlugins, type HardwareInfo, type SecurityPlugin } from "./plugins/index.js";
+export { Gatekeeper, gatekeeper, type GateResult, type GateContext, type GateRule, } from "./guardrails/gatekeeper.js";
 import { Sandbox, SandboxConfig, ExecutionResult } from "./core/sandbox.js";
 import { HardwareInfo } from "./plugins/index.js";
 export interface CapsuleConfig {

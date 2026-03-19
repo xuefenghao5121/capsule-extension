@@ -24,6 +24,15 @@ export {
   type SecurityPlugin 
 } from "./plugins/index.js";
 
+// 从 guardrails 导出
+export { 
+  Gatekeeper, 
+  gatekeeper, 
+  type GateResult, 
+  type GateContext, 
+  type GateRule,
+} from "./guardrails/gatekeeper.js";
+
 // ========== Capsule Instance ==========
 
 import { SandboxManager, Sandbox, SandboxConfig, ExecutionResult, IsolationLevel } from "./core/sandbox.js";
