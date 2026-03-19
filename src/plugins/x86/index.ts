@@ -54,7 +54,7 @@ function detectSGX(): { available: boolean; version?: "1" | "2"; epcSize?: numbe
   
   // 检查 CPU flags
   const hasSGX = cpu.flags.includes("sgx");
-  const hasSGXLC = cpu.flags.includes("sgxlc"); // SGX Launch Control (SGX2)
+  const hasSGXLC = cpu.flags.includes("sgx_lc"); // SGX Launch Control (SGX2)
   
   if (!hasSGX) {
     return { available: false };
