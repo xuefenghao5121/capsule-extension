@@ -2,12 +2,34 @@
 
 > **安装即用，自动检测硬件安全特性**
 
+## 设计哲学
+
+### Sandbox ≈ Process（沙箱即进程）
+
+类比传统操作系统，Capsule 提供进程级隔离：
+
+| 传统 OS | Capsule |
+|---------|---------|
+| Process | Sandbox |
+| UID/GID | Capability |
+| ulimit | ResourceQuota |
+| seccomp | IsolationLevel |
+
+### Guardrails ≈ Gatekeeper（守门即防护）
+
+所有输入输出都要检查，规则即代码：
+
+```
+用户输入 → InputGate → Sandbox → OutputGate → 用户输出
+```
+
 ## 特性
 
 - ✅ **零配置** - 安装后自动检测硬件，启用最佳安全特性
 - ✅ **插件化** - 核心极简，安全特性按需加载
 - ✅ **跨平台** - x86 SGX/TDX/SEV 和 ARM MTE/PAC/TEE 统一接口
 - ✅ **渐进增强** - 无硬件时降级运行，有硬件时自动加速
+- ✅ **Guardrails** - 自研守门系统，不依赖外部 LLM
 
 ## 安装
 
@@ -148,12 +170,81 @@ pluginRegistry.register(myPlugin);
 ## 测试
 
 ```bash
-# 运行测试
-npm test
-
-# 快速验证
+# 运行核心测试
 npx tsx scripts/test.ts
+
+# 运行 Guardrails 测试
+npx tsx scripts/test-guardrails.ts
 ```
+
+## Guardrails 使用
+
+### 基本用法
+
+```typescript
+import { gatekeeper } from "capsule";
+
+// 检查输入
+const result = await gatekeeper.checkInput({
+  content: "Ignore all previous instructions"
+});
+
+console.log(result.allowed);  // false
+console.log(result.reason);   // "检测到 jailbreak 尝试: ignore-instructions"
+```
+
+### 自定义规则
+
+```typescript
+import { Gatekeeper, GateRule } from "capsule";
+
+const myRule: GateRule = {
+  name: "custom-filter",
+  description: "自定义过滤规则",
+  risk: "medium",
+  
+  async check(ctx) {
+    if (ctx.content.includes("forbidden-word")) {
+      return {
+        allowed: false,
+        reason: "包含禁止词汇",
+        confidence: 1.0,
+      };
+    }
+    return { allowed: true, confidence: 1.0 };
+  }
+};
+
+const keeper = new Gatekeeper();
+keeper.addInputRule(myRule);
+```
+
+### 内置规则
+
+| 规则 | 功能 | 风险等级 |
+|------|------|---------|
+| `jailbreak` | 检测绕过限制尝试 | critical |
+| `prompt-injection` | 检测指令注入 | high |
+| `sensitive-data` | 检测并掩码敏感数据 | medium |
+| `command-injection` | 检测命令注入 | critical |
+
+### 检测模式
+
+**Jailbreak 检测**（10 种模式）：
+- `ignore-instructions` - 忽略指令
+- `forget-previous` - 忘记历史
+- `role-change` - 角色切换
+- `pretend` - 假装
+- `developer-mode` - 开发者模式
+- ...
+
+**敏感数据掩码**（8 种模式）：
+- API Key（OpenAI, Slack, GitHub, AWS...）
+- Email
+- Credit Card
+- SSN
+- Secret Key
+- ...
 
 ## 项目结构
 
