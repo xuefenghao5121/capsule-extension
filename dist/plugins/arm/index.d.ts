@@ -1,7 +1,7 @@
 /**
- * ARM Security Plugin (Placeholder)
+ * ARM Security Plugin
  *
- * 支持：MTE, PAC, TEE, SVE
+ * 检测：MTE, PAC, TEE, SVE
  */
 import { SecurityPlugin } from "../index.js";
 declare const armPlugin: SecurityPlugin;

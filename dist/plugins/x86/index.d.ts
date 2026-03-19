@@ -1,7 +1,7 @@
 /**
  * x86 Security Plugin
  *
- * 支持：Intel SGX, Intel TDX, AMD SEV-SNP
+ * 检测：Intel SGX, Intel TDX, AMD SEV-SNP
  */
 import { SecurityPlugin } from "../index.js";
 declare const x86Plugin: SecurityPlugin;

@@ -1,1 +1,1 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/plugins/arm/index.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,EAAE,cAAc,EAAgB,MAAM,aAAa,CAAC;AAE3D,QAAA,MAAM,SAAS,EAAE,cAqBhB,CAAC;AAEF,eAAe,SAAS,CAAC"}
+{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/plugins/arm/index.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,EAAE,cAAc,EAAgB,MAAM,aAAa,CAAC;AAgC3D,QAAA,MAAM,SAAS,EAAE,cAmChB,CAAC;AAEF,eAAe,SAAS,CAAC"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/plugins/guardrails/index.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,EAAE,cAAc,EAAgB,MAAM,aAAa,CAAC;AAC3D,OAAO,EAAE,UAAU,EAAE,WAAW,EAAE,UAAU,EAAE,MAAM,gCAAgC,CAAC;AAErF,QAAA,MAAM,gBAAgB,EAAE,cAsBvB,CAAC;AAEF,eAAe,gBAAgB,CAAC;AAChC,OAAO,EAAE,UAAU,EAAE,WAAW,EAAE,UAAU,EAAE,CAAC"}

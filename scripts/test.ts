@@ -42,7 +42,7 @@ async function main() {
   // 打印硬件信息摘要
   const hw = capsule.getHardwareInfo();
   if (hw) {
-    console.log(`\n📊 Your system supports: ${capsule.getRecommendedIsolation()} isolation`);
+    console.log(`\n📊 Max isolation level: ${hw.recommended.isolationLevel}`);
   }
 }
 
